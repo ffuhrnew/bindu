@@ -43,6 +43,7 @@ Wichtige Optionen (für beide gleich, Fenster und Server):
 | `--data ORDNER` | Datenordner für Identities, Nachrichten und Node-Listen (Standard `~/.bindu`) |
 | `--no-announce` | LXMF-Adresse nicht automatisch bekanntgeben |
 | `--no-chat` | Chat nicht starten |
+| `--allow-host NAME` | zusätzlicher Name im Host-Header, z. B. MagicDNS-Name oder Reverse-Proxy (wiederholbar) |
 
 Alle Optionen: `bindu-server --help`.
 
@@ -52,8 +53,11 @@ Hinweis: Bei Python vor 3.11 nicht aus einem Ordner starten, der einen Unterordn
 ## Sicherheit
 
 Die Oberfläche hat **keine Anmeldung**. Der Server bindet standardmäßig nur an `127.0.0.1`, prüft die Quell-Adresse
-(Loopback und Tailnet, weitere Netze mit `--allow-cidr`) und den Host-Header, und nimmt POST nur als JSON an. Wer ihn
-auf eine andere Adresse legt, sollte ihn nur in einem vertrauenswürdigen Netz betreiben.
+(Loopback und Tailnet, weitere Netze mit `--allow-cidr`), nimmt POST nur als JSON an und schickt eine
+Content-Security-Policy mit (Skripte nur der Seite selbst, keine Einbettung in fremde Seiten). Der Host-Header wird gegen
+DNS-Rebinding geprüft, auch bei anderer Bindung: erlaubt sind IP-Adressen und `localhost`, andere Namen (MagicDNS,
+Reverse-Proxy) nur mit `--allow-host`. Wer den Server auf eine andere Adresse legt, sollte ihn nur in einem
+vertrauenswürdigen Netz betreiben.
 
 Remote-Verwaltung heißt: Ein Node nimmt Anfragen nur von Identities in seiner Allow-Liste an. Wer sich per
 Konfigurationsänderung aus dieser Liste streicht, sperrt sich aus; die Oberfläche warnt davor.

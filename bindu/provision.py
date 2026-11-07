@@ -61,6 +61,7 @@ CK_APPLIED, CK_NEEDS_REBOOT = 1, 2
 EK_CODE, EK_MESSAGE, EK_NS, EK_FIELD = 1, 2, 3, 4
 WK_COMPRESSED = 101
 NAME_NS, NAME_FIELD = 100, 5  # GetState: ns 100 (RNode General Config), Feld 5 = Name des Nodes
+MAX_NODES = 500  # Einträge in mgmt_nodes.json; zuerst fliegen aufgeschnappte Hashes raus, benannte Einträge bleiben
 IDLE_TIMEOUT = 120  # Sekunden ohne Anfrage, danach wird der Management-Link abgebaut (spart Heap und Airtime am Node)
 
 # Kleine Anfragen: Antwort passt in ein Paket. Kommt sie nach ~4 RTT nicht, ist das Paket verloren -> neu senden.
@@ -152,6 +153,7 @@ class ProvisionBackend:
         self.nodes_file = os.path.join(nomad.data_dir, "mgmt_nodes.json")
         os.makedirs(self.cache_dir, mode=0o700, exist_ok=True)
         self._nodes = self._load_json(self.nodes_file, {})
+        self._trim_nodes()
         self._nodes_writer = DeferredWriter(self._write_nodes, 30.0)
         self._schema_state = {}  # dest -> {"stale": Anzahl, "at": Zeit}: Ergebnis des letzten schema()-Laufs
         if wire is None:
@@ -176,6 +178,23 @@ class ProvisionBackend:
             raise ProvisionError("Ziel-Hash muss aus 32 Hex-Zeichen bestehen")
         return dest
 
+    def _trim_nodes(self):
+        """Begrenzt die Liste auf MAX_NODES. Reihenfolge des Entfernens: nur aufgeschnappte Hashes (nie verbunden, ohne
+        Namen), dann Nodes mit selbst gemeldetem Namen, jeweils die ältesten zuerst. Eigene Namen (rename) bleiben immer."""
+        with self._lock:
+            over = len(self._nodes) - MAX_NODES
+            if over <= 0:
+                return
+
+            def rank(item):
+                v = item[1]
+                return (2 if v.get("name") else 1 if v.get("device_name") else 0, v.get("last", 0))
+
+            for h, v in sorted(self._nodes.items(), key=rank)[:over]:
+                if v.get("name"):
+                    break  # alles Weitere sind eigene Namen
+                del self._nodes[h]
+
     def _write_nodes(self):
         with self._lock:
             data = json.loads(json.dumps(self._nodes))
@@ -190,6 +209,7 @@ class ProvisionBackend:
     def _note(self, dest):
         with self._lock:
             self._nodes.setdefault(dest, {})["last"] = int(time.time())
+        self._trim_nodes()
         self._nodes_writer.mark()
 
     def state(self):
@@ -243,6 +263,7 @@ class ProvisionBackend:
         dest = self._check(dest)
         with self._lock:
             self._nodes.setdefault(dest, {})["name"] = str(name or "")[:60]
+        self._trim_nodes()
         self._write_nodes()
         return {}
 
@@ -258,6 +279,7 @@ class ProvisionBackend:
             if entry.get("device_name") == name:
                 return
             entry["device_name"] = name
+        self._trim_nodes()
         self._nodes_writer.mark()
 
     # ---------- Link ----------
@@ -1018,9 +1040,11 @@ class ProvisionBackend:
         try:
             self.call(dest, identity, OP["Reboot"], timeout=10)
         except ProvisionError as exc:
-            if exc.code == 2:  # UnknownOp
+            if not exc.timeout:
+                # Kein Link, Node unbekannt, keine Identity oder Fehlerantwort des Nodes (z. B. UnknownOp):
+                # der Neustart wurde nicht ausgelöst, also nicht als gesendet melden
                 raise
-            # Zeitüberschreitung/Linkabriss: der Node startet vermutlich schon neu
+            # Zeitüberschreitung nach gesendeter Anfrage: der Node startet vermutlich schon neu
             acked = False
         self._drop_link(self._check(dest), identity)
         return {"acked": acked}

@@ -1,12 +1,18 @@
 """Eingebauter Webserver (nur Standardbibliothek): UI + kleine JSON-API.
 
 Schutz: Standard-Bindung 127.0.0.1, Quell-IP-Prüfung (nur Tailnet/Loopback, siehe access.py),
-Host-Header-Prüfung (DNS-Rebinding), POST nur mit Content-Type application/json (verhindert Cross-Site-Formposts).
+Host-Header-Prüfung gegen DNS-Rebinding (auch bei anderer Bindung: nur IP-Adressen, localhost und mit --allow-host
+ausdrücklich erlaubte Namen), POST nur mit Content-Type application/json (verhindert Cross-Site-Formposts),
+Content-Security-Policy (Skripte nur der Seite selbst, per Hash) und frame-ancestors 'none'.
 
 Mit --tls-cert/--tls-key spricht der Server HTTPS.
 """
 
+import base64
+import hashlib
+import ipaddress
 import json
+import re
 import ssl
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -19,8 +25,59 @@ from .provision import SchemaMissing
 
 MAX_BODY = 1_000_000
 
-def _index_bytes():
-    return resources.files("bindu").joinpath("static/index.html").read_bytes()
+_INLINE_SCRIPT = re.compile(rb"<script(?:\s[^>]*)?>(.*?)</script>", re.S)
+_API_CSP = "default-src 'none'; frame-ancestors 'none'"
+_page_cache = {}
+
+
+def _csp_for_page(html):
+    """Skripte der Seite laufen nur, wenn ihr Hash stimmt: eingeschleustes HTML (onerror=…, fremde <script>) wird blockiert.
+    Inline-Stile bleiben erlaubt, weil der Micron-Renderer Stilattribute setzt."""
+    hashes = " ".join("'sha256-%s'" % base64.b64encode(hashlib.sha256(m).digest()).decode()
+                      for m in _INLINE_SCRIPT.findall(html))
+    return ("default-src 'none'; script-src %s; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+            "base-uri 'none'; form-action 'none'; frame-ancestors 'none'" % (hashes or "'none'"))
+
+
+def _index_page():
+    """(Inhalt, Content-Security-Policy) der Oberfläche; die Datei ändert sich zur Laufzeit nicht."""
+    if "index" not in _page_cache:
+        html = resources.files("bindu").joinpath("static/index.html").read_bytes()
+        _page_cache["index"] = (html, _csp_for_page(html))
+    return _page_cache["index"]
+
+
+def host_allowed(header, port, extra=()):
+    """Prüft den Host-Header gegen DNS-Rebinding, wenn der Server nicht nur an Loopback lauscht.
+
+    Erlaubt: IP-Adressen, ``localhost`` und Namen aus ``extra`` (``*`` = alles), jeweils mit dem echten Port.
+    Ein Angreifer-Name, der per DNS auf diese Adresse zeigt, steht nie in dieser Liste."""
+    extra = {str(x).strip().lower() for x in extra}
+    if "*" in extra:
+        return True
+    h = (header or "").strip().lower()
+    if h.startswith("["):
+        end = h.find("]")
+        if end < 0:
+            return False
+        name, rest = h[1:end], h[end + 1:]
+    else:
+        name, sep, tail = h.partition(":")
+        rest = sep + tail
+        if ":" in tail:  # IPv6 ohne Klammern ist als Host-Header ungültig
+            return False
+    if rest:
+        if not rest.startswith(":") or not rest[1:].isdigit() or int(rest[1:]) != port:
+            return False
+    elif port not in (80, 443):
+        return False
+    if name == "localhost" or name in extra:
+        return True
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        return False
 
 
 def make_tls_context(cert, key=None):
@@ -51,7 +108,7 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
             super().setup()
 
         # ---- Helfer ----
-        def _send(self, code, body, ctype):
+        def _send(self, code, body, ctype, csp=None):
             try:
                 self.send_response(code)
                 self.send_header("Content-Type", ctype)
@@ -59,6 +116,8 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Security-Policy", csp or _API_CSP)
+                self.send_header("X-Frame-Options", "DENY")
                 self.end_headers()
                 self.wfile.write(body)
             except (BrokenPipeError, ConnectionResetError):
@@ -86,7 +145,8 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
         def _host_ok(self):
             if allowed_hosts is None:
                 return True
-            if self.headers.get("Host", "") in allowed_hosts:
+            header = self.headers.get("Host", "")
+            if allowed_hosts(header) if callable(allowed_hosts) else header in allowed_hosts:
                 return True
             self._json(403, {"ok": False, "error": "Host nicht erlaubt"})
             return False
@@ -96,7 +156,8 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
             if not self._access_ok() or not self._host_ok():
                 return
             if self.path in ("/", "/index.html"):
-                self._send(200, _index_bytes(), "text/html; charset=utf-8")
+                page, csp = _index_page()
+                self._send(200, page, "text/html; charset=utf-8", csp)
             elif self.path == "/api/state":
                 self._json(200, dict(backend.state(), ok=True, app=meta or {}))
             elif self.path == "/api/chat":
@@ -231,8 +292,10 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
     return Handler
 
 
-def make_server(backend, host="127.0.0.1", port=8765, chat=None, prov=None, meta=None, access=None, tls=None):
-    """``tls``: fertiger ssl.SSLContext (siehe make_tls_context) -> der Port spricht dann nur noch HTTPS."""
+def make_server(backend, host="127.0.0.1", port=8765, chat=None, prov=None, meta=None, access=None, tls=None,
+                allow_hosts=()):
+    """``tls``: fertiger ssl.SSLContext (siehe make_tls_context) -> der Port spricht dann nur noch HTTPS.
+    ``allow_hosts``: zusätzliche Namen im Host-Header (z. B. MagicDNS-Name oder Reverse-Proxy), ``*`` = jeder."""
 
     class _Server(ThreadingHTTPServer):
         daemon_threads = True
@@ -246,9 +309,17 @@ def make_server(backend, host="127.0.0.1", port=8765, chat=None, prov=None, meta
     server = _Server((host, port), make_handler(backend, None, chat, prov, meta, access))
     if tls is not None:
         server.socket = tls.wrap_socket(server.socket, server_side=True, do_handshake_on_connect=False)
+    # Port 0 -> frei wählen; erlaubte Hosts erst nach dem Binden bekannt
+    real_port = server.server_address[1]
     if host in ("127.0.0.1", "localhost", "::1"):
-        # Port 0 -> frei wählen; erlaubte Hosts erst nach dem Binden bekannt
-        real_port = server.server_address[1]
         allowed = {"127.0.0.1:%d" % real_port, "localhost:%d" % real_port, "[::1]:%d" % real_port}
-        server.RequestHandlerClass = make_handler(backend, allowed, chat, prov, meta, access)
+        for name in allow_hosts:
+            allowed.add("%s:%d" % (str(name).strip().lower(), real_port))
+        if any(str(n).strip() == "*" for n in allow_hosts):
+            allowed = None
+    else:
+        # Andere Bindung (Tailnet-Adresse, 0.0.0.0): ohne diese Prüfung könnte eine fremde Webseite per DNS-Rebinding
+        # mit der Oberfläche sprechen
+        allowed = lambda header: host_allowed(header, real_port, allow_hosts)  # noqa: E731
+    server.RequestHandlerClass = make_handler(backend, allowed, chat, prov, meta, access)
     return server

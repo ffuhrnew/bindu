@@ -114,6 +114,14 @@ def main(argv=None):
         metavar="NETZ",
         help="zusätzlich erlaubtes Netz, z. B. 192.168.1.0/24 (wiederholbar); Standard: Tailnet + Loopback",
     )
+    p.add_argument(
+        "--allow-host",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="zusätzlicher Name im Host-Header (z. B. MagicDNS-Name oder Reverse-Proxy, wiederholbar; * = jeder). "
+        "Erlaubt sind sonst nur IP-Adressen und localhost",
+    )
     p.add_argument("--tls-cert", metavar="DATEI", help="HTTPS: Zertifikat (PEM), z. B. von `tailscale cert`; ohne = HTTP")
     p.add_argument("--tls-key", metavar="DATEI", help="HTTPS: privater Schlüssel (PEM); entfällt, wenn er in der Zertifikatsdatei steht")
     p.add_argument("--no-access-check", action="store_true", help="Quell-IP-Prüfung abschalten (nicht empfohlen)")
@@ -177,7 +185,7 @@ def main(argv=None):
         "started": int(time.time()),
     }
     _flush_on_signal(*[x for x in (backend, chat, prov) if x is not None])
-    server = make_server(backend, args.host, args.port, chat, prov, meta, access, tls)
+    server = make_server(backend, args.host, args.port, chat, prov, meta, access, tls, args.allow_host)
     host, port = server.server_address[:2]
     banner = "bindu %s  Code: %s  Python %s  RNS %s  LXMF %s" % (
         meta["version"], meta["file"], meta["python"], meta["rns"], meta["lxmf"] or "-")

@@ -373,7 +373,7 @@
   }
 
   // ---------- Chat ----------
-  var peer = "", chatTimer = null, lastCount = -1;
+  var peer = "", chatTimer = null, lastCount = -1, chatSig = "", threadSig = "";
 
   function showTab(name) {
     var chat = name === "chat", nodes = name === "nodes";
@@ -401,6 +401,9 @@
       $("tab-chat").textContent = s.unread ? "Chat (" + s.unread + ")" : "Chat";
       $("myaddr").textContent = s.address + "  (" + s.name + ")";
       $("myaddr").setAttribute("data-addr", s.address);
+      var sig = JSON.stringify([s.address, s.name, s.unread, s.conversations, s.contacts]);
+      if (sig === chatSig) return;  // nichts Neues: Listen nicht neu aufbauen, sonst geht eine Markierung verloren
+      chatSig = sig;
       var box = $("convs"); box.innerHTML = "";
       s.conversations.forEach(function (c) {
         var b = document.createElement("button"); b.className = "node conv";
@@ -428,6 +431,9 @@
 
   function renderThread(res) {
     var box = $("msgs");
+    var sig = peer + "|" + JSON.stringify(res.messages);
+    if (sig === threadSig) return;  // unverändert: nicht neu zeichnen (Textmarkierung und Bildlauf bleiben)
+    threadSig = sig;
     var atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
     box.innerHTML = "";
     res.messages.forEach(function (m) {
@@ -465,7 +471,7 @@
 
   function openChat(p) {
     if (!HASH.test(p)) { cstatus("LXMF-Adresse muss aus 32 Hex-Zeichen bestehen", true); return; }
-    peer = p.toLowerCase(); lastCount = -1;
+    peer = p.toLowerCase(); lastCount = -1; threadSig = "";
     $("compose").hidden = false; $("msgs").innerHTML = "";
     cstatus(label("", peer));
     loadThread(); refreshChat(); $("text").focus();
@@ -531,16 +537,20 @@
   // raw: Rohwert klein dahinter zeigen. when(root): Regel nur im Top-Level-Namespace mit diesem Namen.
   function fmtBytes(v) { return Number(v).toLocaleString("de-DE") + " B"; }
   function trimNum(x, d) { return Number(x.toFixed(d)).toLocaleString("de-DE", { maximumFractionDigits: d }); }
+  // Die Firmware sendet manche negative dBm-Werte als vorzeichenlose 16-Bit-Zahl (65420 statt -116)
+  function sdbm(v) { return v > 32767 ? v - 65536 : v; }
   var FMT = [
-    { re: /^last rssi$/i, raw: true, fn: function (v) { return (v - 157) + " dBm"; } },
-    { re: /rssi|noise floor/i, fn: function (v) { return v + " dBm"; } },
+    // Alte RNode-Rohwerte sind ein Byte (Wert - 157); ein Rohwert über 32767 ist dagegen eine umgebrochene negative Zahl
+    { re: /^last rssi$/i, raw: true, fn: function (v) { return (v > 32767 ? v - 65536 : v - 157) + " dBm"; } },
+    { re: /rssi|noise floor/i, fn: function (v) { return sdbm(v) + " dBm"; } },
     { re: /snr/i, raw: true, fn: function (v) { var s = v * 0.25; return (s > 0 ? "+" : "") + trimNum(s, 2) + " dB"; } },
-    { re: /\(%\)|percent/i, fn: function (v) { return v + " %"; } },
+    { re: /\(%\)|percent/i, fn: function (v) { return trimNum(v, 2) + " %"; } },
+    { re: /voltage/i, fn: function (v) { return trimNum(v, 2) + " V"; } },
     { re: /^frequency$/i, fn: function (v) { return trimNum(v / 1e6, 6) + " MHz"; } },
     { re: /^bandwidth$/i, fn: function (v) { return trimNum(v / 1e3, 3) + " kHz"; } },
     { re: /^tx power$/i, fn: function (v) { return v + " dBm"; } },
     { re: /^coding rate$/i, raw: true, fn: function (v) { return "4/" + v; } },
-    { re: /^(size|free|min free|max alloc)$/i, when: /memory/i, fn: fmtBytes }
+    { re: /^(size|free|min free|max alloc)$/i, when: /memory|allocator|heap|pool/i, fn: fmtBytes }
   ];
 
   function fmtValue(ns, f, v, root) {
@@ -559,6 +569,7 @@
         var r = FMT[k];
         if (r.re.test(f.name) && (!r.when || r.when.test(root || ""))) return { text: r.fn(v), raw: r.raw ? String(v) : "" };
       }
+      if (f.type === "float") return { text: trimNum(v, 3), raw: "" };  // Float32-Rauschen wie 3.8010005950927734 ausblenden
     }
     return { text: String(v), raw: "" };
   }
@@ -976,7 +987,7 @@
     if (!confirm("Node neu starten? Der Link bricht ab.")) return;
     nreq("reboot").then(function (r) {
       if (done(r, r.acked ? "Neustart bestätigt – in ca. 30 s neu verbinden."
-                          : "Neustart gesendet. Der Node antwortet dabei nicht, das ist normal – in ca. 30 s neu verbinden.")) $("nbanner").hidden = true;
+                          : "Neustart gesendet, nicht bestätigt (der Node antwortet dabei nicht) – in ca. 30 s neu verbinden. Kommt er nicht wieder, Identity und Allow-Liste prüfen.")) $("nbanner").hidden = true;
     });
   };
   $("nreset").onclick = function () {
