@@ -22,3 +22,9 @@ packages = ["bindu", "bindu.static"]
 
 [tool.setuptools.package-data]
 "bindu.static" = ["index.html"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # LXMF 1.1.1 ruft intern setDaemon() auf (LXMRouter.py); nicht unser Code, nur Rauschen im Testbericht
+    "ignore:setDaemon:DeprecationWarning",
+]

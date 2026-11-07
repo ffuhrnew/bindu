@@ -24,6 +24,10 @@ def free_port():
         return s.getsockname()[1]
 
 
+# Der Hintergrund-Server läuft auf diesem Rechner: nie über einen Proxy aus den Umgebungsvariablen fragen
+_LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def wait_for(url, proc, timeout=60):
     """Wartet, bis der Server antwortet. False, wenn er vorher endet oder die Zeit abläuft."""
     end = time.time() + timeout
@@ -31,7 +35,7 @@ def wait_for(url, proc, timeout=60):
         if proc.poll() is not None:
             return False
         try:
-            urllib.request.urlopen(url, timeout=2)
+            _LOCAL.open(url, timeout=2)
             return True
         except urllib.error.HTTPError:
             return True  # der Server antwortet, nur mit einem Fehlercode
