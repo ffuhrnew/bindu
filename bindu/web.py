@@ -123,16 +123,6 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
             except (BrokenPipeError, ConnectionResetError):
                 pass  # Browser hat die Verbindung schon geschlossen (z. B. Seite neu geladen während einer langen Funkanfrage)
 
-        def _redirect(self, location):
-            try:
-                self.send_response(301)
-                self.send_header("Location", location)
-                self.send_header("Content-Length", "0")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-
         def _json(self, code, obj):
             self._send(code, json.dumps(obj).encode(), "application/json; charset=utf-8")
 

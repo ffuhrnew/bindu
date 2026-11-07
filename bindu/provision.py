@@ -65,7 +65,6 @@ MAX_NODES = 500  # Einträge in mgmt_nodes.json; zuerst fliegen aufgeschnappte H
 IDLE_TIMEOUT = 120  # Sekunden ohne Anfrage, danach wird der Management-Link abgebaut (spart Heap und Airtime am Node)
 
 # Kleine Anfragen: Antwort passt in ein Paket. Kommt sie nach ~4 RTT nicht, ist das Paket verloren -> neu senden.
-FAST_OPS = None  # wird unten gesetzt (braucht OP)
 FAST_TIMEOUT = 15      # Sekunden je Versuch
 FAST_RETRIES = 3       # Wiederholungen auf demselben Link (insgesamt 4 Versuche)
 LINK_TRY_TIMEOUT = 15  # Sekunden je Link-Aufbau-Versuch

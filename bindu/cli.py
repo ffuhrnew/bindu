@@ -201,7 +201,10 @@ def main(argv=None):
         print("LXMF-Adresse: %s  (Name: %s)" % (chat.address, chat.display_name))
         if not args.no_announce:
             # Interfaces brauchen einen Moment, bis sie senden können
-            threading.Timer(8.0, chat.announce).start()
+            # Daemon: ein Beenden vor Ablauf der 8 s soll nicht an diesem Timer hängen bleiben
+            announce_timer = threading.Timer(8.0, chat.announce)
+            announce_timer.daemon = True
+            announce_timer.start()
     print("Zugriff: " + access.describe())
     log.info("Zugriff: %s", access.describe())
     if not access.enabled and args.host not in ("127.0.0.1", "localhost", "::1"):
