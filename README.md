@@ -74,5 +74,4 @@ und Schema-Abruf sind unverändert übernommen.
 
 ## Lizenz
 
-Noch nicht festgelegt. Bis dahin gilt: alle Rechte vorbehalten. Geplant ist eine Lizenz, die mit der
-[Reticulum License](https://github.com/markqvist/Reticulum/blob/master/LICENSE) vereinbar ist.
+Dieses Projekt steht unter der [Reticulum License](LICENSE).
