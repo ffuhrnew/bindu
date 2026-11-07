@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bindu"
+version = "0.1.1"
+description = "Bindupāla – Jālakam: NomadNet-Browser, LXMF-Chat und Node-Verwaltung für microReticulum"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["rns==1.5.4", "lxmf==1.1.1"]
+
+[project.optional-dependencies]
+app = ["pywebview"]
+
+[project.scripts]
+bindu = "bindu.app:main"
+bindu-server = "bindu.cli:main"
+
+[tool.setuptools]
+packages = ["bindu", "bindu.static"]
+
+[tool.setuptools.package-data]
+"bindu.static" = ["index.html"]

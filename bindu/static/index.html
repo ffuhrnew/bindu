@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bindupāla – Jālakam</title>
+<style>
+  :root { --bg:#fafaf8; --fg:#1d1d1b; --mut:#6b6b66; --line:#d9d9d2; --acc:#0b6b5c; --panel:#f1f1ec; --err:#a4262c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161715; --fg:#e8e8e2; --mut:#9a9a92; --line:#2e2f2b; --acc:#5fcdb8; --panel:#1e1f1c; --err:#ff8a8a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); align-items:center; flex-wrap:wrap; }
+  header .brand { font-weight:bold; color:var(--acc); margin-right:4px; }
+  input, select, button { font:inherit; color:inherit; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:4px 8px; }
+  button { cursor:pointer; } button:hover { border-color:var(--acc); }
+  button:disabled { opacity:.4; cursor:default; }
+  #addr { flex:1 1 320px; min-width:0; }
+  main { flex:1; display:flex; min-height:0; }
+  aside { width:240px; border-right:1px solid var(--line); overflow:auto; padding:8px; background:var(--panel); }
+  aside h2 { font-size:12px; text-transform:uppercase; color:var(--mut); margin:0 0 6px; letter-spacing:.05em; }
+  .node { display:block; width:100%; text-align:left; border:0; background:none; padding:4px 6px; border-radius:4px; }
+  .node:hover { background:var(--bg); }
+  .node small { display:block; color:var(--mut); }
+  .nrow { display:flex; align-items:center; }
+  .nrow .node { flex:1; width:auto; }
+  .nodex { border:0; background:none; color:var(--mut); padding:4px 8px; cursor:pointer; border-radius:4px; }
+  .nodex:hover { color:var(--err); background:var(--bg); }
+  section { flex:1; overflow:auto; padding:12px 16px; }
+  #status { color:var(--mut); margin-bottom:8px; min-height:1.5em; }
+  #status.err { color:var(--err); }
+  #page { white-space:pre-wrap; word-break:break-word; }
+  .mu-h { font-weight:bold; margin-top:.6em; }
+  .mu-h1 { font-size:1.25em; border-bottom:1px solid var(--line); }
+  .mu-h2 { font-size:1.1em; }
+  .mu-hr { border:0; border-top:1px solid var(--line); margin:.6em 0; }
+  .mu-link { color:var(--acc); }
+  .mu-opt { margin-right:10px; }
+  [hidden] { display:none !important; }
+  .tab.on { border-color:var(--acc); color:var(--acc); }
+  #bbar { display:contents; }
+  #chatview { flex:1; display:flex; min-height:0; }
+  aside .addr { word-break:break-all; font-size:12px; margin-bottom:4px; }
+  aside .row { display:flex; gap:4px; margin:4px 0 10px; }
+  aside .row input { flex:1; min-width:0; }
+  .conv b { color:var(--acc); }
+  .thread { display:flex; flex-direction:column; padding:0; }
+  #cstatus { color:var(--mut); padding:8px 16px 0; min-height:2em; }
+  #cstatus.err { color:var(--err); }
+  #msgs { flex:1; overflow:auto; padding:8px 16px; display:flex; flex-direction:column; gap:6px; }
+  .msg { max-width:80%; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--panel); white-space:pre-wrap; word-break:break-word; }
+  .msg { align-self:flex-start; }
+  .msg.out { align-self:flex-end; border-color:var(--acc); }
+  .msg small a { color:var(--mut); text-decoration:none; }
+  .msg small a:hover { color:var(--acc); }
+  .msg small { display:block; color:var(--mut); }
+  .msg.failed small { color:var(--err); }
+  #compose { display:flex; gap:8px; padding:8px 16px; border-top:1px solid var(--line); }
+  #text { flex:1; resize:none; font:inherit; color:inherit; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:4px 8px; }
+  #nodeview { flex:1; display:flex; min-height:0; }
+  button.primary { background:var(--acc); color:var(--bg); border-color:var(--acc); font-weight:bold; }
+  button.primary:hover { filter:brightness(1.1); }
+  button.primary:disabled { filter:none; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--line); flex:none; }
+  .dot.ok { background:var(--acc); } .dot.bad { background:var(--err); }
+  .gsec { border:1px solid var(--line); border-radius:4px; background:var(--panel); margin:10px 0; }
+  .gsec h3 { margin:0; padding:6px 10px; font-size:14px; border-bottom:1px solid var(--line); }
+  .gsec .gb { padding:6px 10px; font-size:13px; overflow-x:auto; }
+  .gsec table { border-collapse:collapse; width:100%; }
+  .gsec th, .gsec td { text-align:left; padding:2px 10px 2px 0; white-space:nowrap; }
+  .gsec th { color:var(--mut); font-weight:normal; }
+  .gsec .bad { color:var(--err); } .gsec .ok { color:var(--acc); }
+  .gsec .mut { color:var(--mut); }
+  #fsum { display:flex; gap:12px; flex-wrap:wrap; }
+  #nstatus { color:var(--mut); min-height:1.5em; margin-bottom:6px; }
+  #nstatus.err { color:var(--err); }
+  #nlogbar { display:flex; gap:8px; align-items:center; margin:14px 0 4px; color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+  #nlog { height:240px; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:4px 8px; font:12px/1.45 ui-monospace,Menlo,monospace; white-space:pre-wrap; word-break:break-all; }
+  #nlog .e { color:var(--err); } #nlog .t { color:var(--mut); }
+  #nbanner { background:var(--panel); border:1px solid var(--err); color:var(--err); padding:4px 8px; border-radius:4px; margin-bottom:8px; }
+  #nsnav { display:flex; gap:4px; flex-wrap:wrap; margin:8px 0; }
+  #nsnav button.on { border-color:var(--acc); color:var(--acc); }
+  table.fields { border-collapse:collapse; table-layout:fixed; width:100%; }
+  table.fields td { padding:4px 12px 4px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.fields td.fn { width:26em; }
+  table.fields td.fn .badge { white-space:nowrap; }
+  table.fields td.fi { width:30em; }
+  table.fields td.fh { color:var(--mut); font-size:12px; padding-top:6px; word-break:break-word; }
+  table.fields textarea { white-space:pre; overflow-x:auto; }
+  table.fields input[type=text], table.fields input[type=number], table.fields input[type=password], table.fields textarea, table.fields select { width:100%; max-width:100%; font:inherit; color:inherit; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:2px 6px; }
+  table.fields input[type=checkbox] { margin-top:5px; }
+  tr.chg td.fn::before { content:"\25CF  "; color:var(--acc); }
+  .badge { font-size:11px; color:var(--mut); border:1px solid var(--line); border-radius:3px; padding:0 4px; margin-left:4px; }
+  .badge.warn { color:var(--err); border-color:var(--err); }
+  tr.draft td.fn { color:var(--acc); }
+  tr.dangerrow td.fn { color:var(--err); }
+  .nbar { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 0; padding:8px 0; position:sticky; bottom:0; background:var(--bg); border-top:1px solid var(--line); }
+  #nreboot { margin-left:auto; }
+  @media (max-width:1100px) { table.fields { table-layout:auto; } table.fields td.fn { width:auto; } table.fields td.fi { width:auto; } table.fields td.fh { display:none; } #nreboot { margin-left:0; } }
+  .danger { border-color:var(--err); color:var(--err); }
+  #nmode { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+  #nmode button.on { border-color:var(--acc); color:var(--acc); }
+  .sstamp { color:var(--mut); font-size:12px; margin:0 0 4px; }
+  .sgrp { margin:0 0 18px; }
+  .sgrp > h3 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--acc); margin:12px 0 4px; border-bottom:1px solid var(--line); }
+  .sgrp h4 { font-size:12px; color:var(--mut); margin:10px 0 2px; font-weight:normal; }
+  .sgrp h5 { font-size:12px; color:var(--mut); margin:8px 0 2px 12px; font-weight:normal; font-style:italic; }
+  table.sfields { border-collapse:collapse; width:100%; max-width:46em; }
+  table.sfields td { padding:2px 8px 2px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.sfields td.fn { color:var(--mut); white-space:nowrap; width:40%; }
+  table.sfields td.fv small { color:var(--mut); margin-left:6px; }
+  @media (max-width:700px) {
+    body { height:100dvh; }
+    main { flex-direction:column; }
+    aside { width:auto; max-height:38vh; flex:none; border-right:0; border-bottom:1px solid var(--line); }
+    section { min-height:0; padding:10px 12px; }
+    /* Browser und Nodes: die ganze Ansicht scrollt als eine Seite (Liste oben, Inhalt darunter), nichts bleibt fest reserviert */
+    #browserview, #nodeview { overflow-y:auto; overflow-x:hidden; }
+    #browserview > aside, #nodeview > aside { max-height:none; overflow:visible; }
+    #browserview > section, #nodeview > section { flex:none; overflow:visible; }
+    /* iOS zoomt beim Antippen eines Feldes mit weniger als 16 px Schrift in die Seite hinein */
+    input, select, textarea, table.fields input[type=text], table.fields input[type=number], table.fields input[type=password],
+    table.fields textarea, table.fields select { font-size:16px; }
+    /* Daumen-taugliche Trefferflächen (Apple: mindestens 44 pt) */
+    button, select, input:not([type=checkbox]) { min-height:44px; }
+    input[type=checkbox] { width:24px; height:24px; }
+    .nodex { min-width:44px; }
+    /* Die Aktionsleiste klebt nicht mehr am unteren Rand, sonst verdeckt sie auf dem kleinen Schirm die Felder */
+    .nbar { position:static; }
+    .nbar button { flex:1 1 45%; }
+    /* Nodes auf dem Handy: Status und Protokoll stehen oben, der Status bleibt beim Scrollen sichtbar, die Felder folgen darunter */
+    #nodeview > section { display:flex; flex-direction:column; }
+    #nstatus { order:1; position:sticky; top:0; z-index:3; background:var(--bg); padding:6px 0; margin-bottom:6px; border-bottom:1px solid var(--line); }
+    #nbanner { order:2; }
+    #nlogbar { order:3; margin:4px 0; }
+    #nlog { order:4; height:24vh; min-height:96px; margin-bottom:10px; word-break:normal; overflow-wrap:anywhere; }
+    /* Felder mit einem Haken: Beschriftung links, Haken rechts in einer Zeile */
+    table.fields tr:has(input[type=checkbox]) { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    table.fields tr:has(input[type=checkbox]) td { flex:none; }
+    table.fields tr:has(input[type=checkbox]) td.fn { flex:1; }
+    #ninfo { order:5; font-size:12px; overflow-wrap:anywhere; }
+    #nmode { order:6; } #nsnav { order:7; } #nfields { order:8; } .nbar { order:9; }
+    /* Namespace-Auswahl als eine Zeile zum Wischen statt einer langen Spalte */
+    #nsnav { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:4px; }
+    #nsnav button { flex:none; }
+    /* Felder einzeln untereinander: Beschriftung über dem Feld, das Feld nutzt die ganze Breite */
+    table.fields, table.fields tbody, table.fields tr, table.fields td { display:block; width:auto; }
+    table.fields tr { padding:6px 0; border-bottom:1px solid var(--line); }
+    table.fields td { border:0; padding:2px 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand" id="brand">bindu</span>
+  <button id="tab-browser" class="tab on">Browser</button>
+  <button id="tab-chat" class="tab" hidden>Chat</button>
+  <button id="tab-nodes" class="tab" hidden>Nodes</button>
+  <span id="bbar">
+    <button id="back" title="Zurück" disabled>←</button>
+    <input id="addr" placeholder="Node-Hash oder hash:/page/index.mu" spellcheck="false" autocomplete="off">
+    <button id="go">Laden</button>
+    <select id="ident" title="Identity für die Anmeldung beim Node"></select>
+    <button id="newid" title="Neue Identity anlegen">+ Identity</button>
+  </span>
+</header>
+<main id="browserview">
+  <aside>
+    <h2>Gehörte Nodes</h2>
+    <div id="nodes"></div>
+  </aside>
+  <section>
+    <div id="status"></div>
+    <div id="page"></div>
+  </section>
+</main>
+<main id="chatview" hidden>
+  <aside>
+    <h2>Meine Adresse</h2>
+    <div id="myaddr" class="addr"></div>
+    <div class="row"><button id="copyaddr">Kopieren</button><button id="announce" title="Adresse im Netz bekanntgeben">Announce</button></div>
+    <h2>Konversationen</h2>
+    <div id="convs"></div>
+    <div class="row"><input id="newpeer" placeholder="LXMF-Adresse (32 Hex)" spellcheck="false" autocomplete="off"><button id="startchat">Neu</button></div>
+    <h2>Gehörte Adressen</h2>
+    <div id="contacts"></div>
+  </aside>
+  <section class="thread">
+    <div id="cstatus">Konversation links wählen oder neue Adresse eingeben.</div>
+    <div id="msgs"></div>
+    <form id="compose" hidden>
+      <textarea id="text" rows="2" placeholder="Nachricht (Enter = senden, Shift+Enter = Zeilenumbruch)"></textarea>
+      <button id="send" type="submit">Senden</button>
+    </form>
+  </section>
+</main>
+<main id="nodeview" hidden>
+  <aside>
+    <h2>Management-Nodes</h2>
+    <div id="mnodes"></div>
+    <h2>Verbinden</h2>
+    <div class="row"><input id="ndest" placeholder="Hash rnstransport.remote.management (32 Hex)" spellcheck="false" autocomplete="off"></div>
+    <div class="row"><select id="nident" title="Identity – muss in der Allow-Liste des Nodes stehen"></select></div>
+    <div class="row"><button id="nconnect">Verbinden</button><button id="nping" title="Nur Link und GetInfo: prüft, ob der Node antwortet (kein Schema, kein Zustand)">Test</button></div>
+    <div class="row"><button id="nrefresh" title="Schema über Funk neu vom Node holen (kann einen Node zum Hängen bringen)">Schema neu</button></div>
+  </aside>
+  <section>
+    <div id="nstatus">Node links wählen oder Hash eingeben. Über LoRa dauert jede Anfrage Sekunden bis Minuten.</div>
+    <div id="nbanner" hidden>Neustart nötig, damit committete Änderungen wirken.</div>
+    <div id="ninfo"></div>
+    <div id="nmode" hidden>
+      <button data-m="manage" class="on">Verwalten</button>
+      <button data-m="status">Status</button>
+      <button id="nstatrefresh" title="Werte neu vom Node holen" hidden>Aktualisieren</button>
+      <button id="ndisc" title="Management-Link zum Node abbauen (gibt Speicher am Node frei)">Trennen</button>
+    </div>
+    <div id="nsnav"></div>
+    <div id="nfields"></div>
+    <div class="nbar" id="nbar" hidden>
+      <button id="nsave">Als Entwurf speichern</button>
+      <button id="ncommit">Commit (Namespace)</button>
+      <button id="ndiscard">Entwurf verwerfen</button>
+      <button id="nreboot" class="danger">Neustart</button>
+      <button id="nreset" class="danger">Werksreset</button>
+    </div>
+    <div id="nlogbar"><span>Protokoll</span><button id="nlogtoggle">ausblenden</button><button id="nlogclear">leeren</button></div>
+    <div id="nlog" role="log"></div>
+  </section>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var cur = { node: "", path: "" };
+  var hist = [];
+  var HASH = /^[0-9a-f]{32}$/i;
+
+  function api(path, body) {
+    var opt = body === undefined ? {} : {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    };
+    return fetch(path, opt).then(function (r) { return r.json(); });
+  }
+
+  function setStatus(msg, isErr) {
+    var el = $("status"); el.textContent = msg || ""; el.className = isErr ? "err" : "";
+  }
+
+  function parseTarget(text) {
+    text = (text || "").trim();
+    var m = text.match(/^([0-9a-f]{32})(?::(\/.*))?$/i);
+    if (m) return { node: m[1].toLowerCase(), path: m[2] || "/page/index.mu" };
+    return null;
+  }
+
+  function resolveLink(dest) {
+    if (/^lxmf@/i.test(dest)) return { lxmf: dest };
+    var t = parseTarget(dest);
+    if (t) return t;
+    if (dest.charAt(0) === ":") return { node: cur.node, path: dest.slice(1) };
+    if (dest.charAt(0) === "/") return { node: cur.node, path: dest };
+    return null;
+  }
+
+  function collect(spec) {
+    var fields = {}, vars = {};
+    var items = (spec || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    var all = items.indexOf("*") >= 0;
+    var els = document.querySelectorAll("#page .mf");
+    function take(el) {
+      var name = el.getAttribute("data-name");
+      if ((el.type === "checkbox" || el.type === "radio") && !el.checked) return;
+      fields[name] = el.value;
+    }
+    for (var i = 0; i < els.length; i++) {
+      var n = els[i].getAttribute("data-name");
+      if (all || items.indexOf(n) >= 0) take(els[i]);
+    }
+    items.forEach(function (it) {
+      var eq = it.indexOf("=");
+      if (eq > 0) vars[it.slice(0, eq)] = it.slice(eq + 1);
+    });
+    return { fields: fields, vars: vars };
+  }
+
+  function load(node, path, extra, noHistory) {
+    if (!HASH.test(node)) { setStatus("Ungültiger Node-Hash", true); return; }
+    var identity = $("ident").value;
+    setStatus("Lade " + node.slice(0, 8) + "…" + path + (identity ? "  (als " + identity + ")" : "  (anonym)") + " …");
+    var prev = { node: cur.node, path: cur.path };
+    api("/api/page", {
+      node: node, path: path, identity: identity,
+      fields: extra ? extra.fields : {}, vars: extra ? extra.vars : {}
+    }).then(function (res) {
+      if (!res.ok) { setStatus(res.error, true); return; }
+      if (!noHistory && prev.node) hist.push(prev);
+      cur = { node: node, path: path };
+      $("addr").value = node + ":" + path;
+      $("page").innerHTML = res.html;
+      $("back").disabled = hist.length === 0;
+      setStatus(node + ":" + path + (identity ? "  ·  " + identity : "  ·  anonym"));
+      document.querySelector("section").scrollTop = 0;
+    }).catch(function (e) { setStatus("Verbindung zur App verloren: " + e, true); });
+  }
+
+  function go() {
+    var t = parseTarget($("addr").value);
+    if (!t) { setStatus("Format: 32-stelliger Hash oder hash:/page/index.mu", true); return; }
+    load(t.node, t.path);
+  }
+
+  $("go").onclick = go;
+  $("addr").onkeydown = function (e) { if (e.key === "Enter") go(); };
+  $("back").onclick = function () {
+    var p = hist.pop();
+    if (p) load(p.node, p.path, null, true);
+    $("back").disabled = hist.length === 0;
+  };
+
+  $("page").addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest(".mu-link") : null;
+    if (!a) return;
+    e.preventDefault();
+    var r = resolveLink(a.getAttribute("data-dest"));
+    if (!r) { setStatus("Link-Typ wird nicht unterstützt: " + a.getAttribute("data-dest"), true); return; }
+    if (r.lxmf) {
+      var lm = r.lxmf.match(/^lxmf@([0-9a-f]{32})$/i);
+      if (!lm || $("tab-chat").hidden) { setStatus("LXMF-Link nicht nutzbar: " + r.lxmf, true); return; }
+      showTab("chat"); openChat(lm[1].toLowerCase()); return;
+    }
+    load(r.node, r.path, collect(a.getAttribute("data-fields")));
+  });
+
+  $("newid").onclick = function () {
+    var name = prompt("Name der neuen Identity (Buchstaben, Ziffern, _ . -):");
+    if (!name) return;
+    api("/api/identity", { name: name }).then(function (res) {
+      if (!res.ok) { setStatus(res.error, true); return; }
+      refresh(res.identity.name);
+      setStatus("Identity '" + res.identity.name + "' angelegt, Hash " + res.identity.hash +
+        " – diesen Hash in die Allow-Liste des Nodes eintragen.");
+    });
+  };
+
+  function refresh(select) {
+    api("/api/state").then(function (s) {
+      if (s.app && s.app.version) {
+        $("brand").textContent = "bindu " + s.app.version;
+        $("brand").title = "Code: " + (s.app.file || "?") + "\nPython " + (s.app.python || "?") + " · RNS " + (s.app.rns || "?") +
+          " · LXMF " + (s.app.lxmf || "-") + "\nLogdatei: " + (s.app.log || "keine");
+      }
+      var sel = $("ident"), keep = select || sel.value;
+      sel.innerHTML = "";
+      var anon = document.createElement("option"); anon.value = ""; anon.textContent = "anonym";
+      sel.appendChild(anon);
+      s.identities.forEach(function (i) {
+        var o = document.createElement("option");
+        o.value = i.name; o.textContent = i.name + " (" + i.hash.slice(0, 8) + "…)";
+        sel.appendChild(o);
+      });
+      sel.value = keep; if (sel.value !== keep) sel.value = "";
+      var box = $("nodes"); box.innerHTML = "";
+      s.nodes.forEach(function (n) {
+        var b = document.createElement("button"); b.className = "node";
+        b.textContent = n.name || "(ohne Name)";
+        var small = document.createElement("small"); small.textContent = n.hash.slice(0, 16) + "…";
+        b.appendChild(small);
+        b.onclick = function () { load(n.hash, "/page/index.mu"); };
+        box.appendChild(b);
+      });
+      if (!s.nodes.length) box.textContent = "noch keine Announces gehört";
+    });
+  }
+
+  // ---------- Chat ----------
+  var peer = "", chatTimer = null, lastCount = -1;
+
+  function showTab(name) {
+    var chat = name === "chat", nodes = name === "nodes";
+    $("browserview").hidden = chat || nodes; $("bbar").hidden = chat || nodes;
+    $("chatview").hidden = !chat; $("nodeview").hidden = !nodes;
+    $("tab-browser").className = "tab" + (chat || nodes ? "" : " on");
+    $("tab-chat").className = "tab" + (chat ? " on" : "");
+    $("tab-nodes").className = "tab" + (nodes ? " on" : "");
+    if (chat) { refreshChat(); if (peer) loadThread(); }
+    if (nodes) refreshNodes();
+  }
+  $("tab-nodes").onclick = function () { showTab("nodes"); };
+
+  $("tab-browser").onclick = function () { showTab("browser"); };
+  $("tab-chat").onclick = function () { showTab("chat"); };
+
+  function cstatus(msg, isErr) { var el = $("cstatus"); el.textContent = msg || ""; el.className = isErr ? "err" : ""; }
+  function label(name, hash) { return (name ? name + " " : "") + "(" + hash.slice(0, 8) + "…)"; }
+  function fmtTime(ts) { return ts ? new Date(ts * 1000).toLocaleString() : ""; }
+
+  function refreshChat() {
+    api("/api/chat").then(function (s) {
+      if (!s.ok) { $("tab-chat").hidden = true; return; }
+      $("tab-chat").hidden = false;
+      $("tab-chat").textContent = s.unread ? "Chat (" + s.unread + ")" : "Chat";
+      $("myaddr").textContent = s.address + "  (" + s.name + ")";
+      $("myaddr").setAttribute("data-addr", s.address);
+      var box = $("convs"); box.innerHTML = "";
+      s.conversations.forEach(function (c) {
+        var b = document.createElement("button"); b.className = "node conv";
+        var t = document.createElement(c.unread ? "b" : "span");
+        t.textContent = label(c.name, c.peer) + (c.unread ? "  +" + c.unread : "");
+        var small = document.createElement("small");
+        small.textContent = (c.last_out ? "du: " : "") + c.preview;
+        b.appendChild(t); b.appendChild(small);
+        b.onclick = function () { openChat(c.peer); };
+        box.appendChild(b);
+      });
+      if (!s.conversations.length) box.textContent = "noch keine Nachrichten";
+      var cb = $("contacts"); cb.innerHTML = "";
+      s.contacts.forEach(function (c) {
+        var b = document.createElement("button"); b.className = "node";
+        b.textContent = c.name || "(ohne Name)";
+        var small = document.createElement("small"); small.textContent = c.hash.slice(0, 16) + "…";
+        b.appendChild(small);
+        b.onclick = function () { openChat(c.hash); };
+        cb.appendChild(b);
+      });
+      if (!s.contacts.length) cb.textContent = "noch keine Announces gehört";
+    }).catch(function () {});
+  }
+
+  function renderThread(res) {
+    var box = $("msgs");
+    var atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.innerHTML = "";
+    res.messages.forEach(function (m) {
+      var d = document.createElement("div");
+      d.className = "msg" + (m.out ? " out" : "") + (m.state === "failed" ? " failed" : "");
+      if (m.title) { var h = document.createElement("b"); h.textContent = m.title; d.appendChild(h); d.appendChild(document.createElement("br")); }
+      d.appendChild(document.createTextNode(m.content));   // immer als Text, nie als HTML
+      var small = document.createElement("small");
+      var st = { pending: " · wird gesendet …", sent: " · gesendet", delivered: " · zugestellt ✓", failed: " · fehlgeschlagen ✗", received: "" }[m.state] || "";
+      small.textContent = fmtTime(m.ts) + st + (!m.out && !m.verified ? " · Signatur nicht geprüft" : "");
+      if (m.out && m.state === "failed") {
+        var re = document.createElement("a"); re.href = "#"; re.textContent = " erneut senden";
+        re.onclick = function (e) { e.preventDefault(); resend(m); };
+        small.appendChild(re);
+      }
+      var del = document.createElement("a"); del.href = "#"; del.textContent = " ×"; del.title = "Nachricht löschen";
+      del.onclick = function (e) { e.preventDefault(); api("/api/chat/delete", { id: m.id }).then(loadThread); };
+      small.appendChild(del);
+      d.appendChild(small);
+      box.appendChild(d);
+    });
+    if (atEnd || res.messages.length !== lastCount) box.scrollTop = box.scrollHeight;
+    lastCount = res.messages.length;
+  }
+
+  function loadThread() {
+    if (!peer) return;
+    api("/api/chat/open", { peer: peer }).then(function (res) {
+      if (!res.ok) { cstatus(res.error, true); return; }
+      if (res.peer !== peer) return;
+      cstatus(label(res.name, res.peer));
+      renderThread(res);
+    }).catch(function (e) { cstatus("Verbindung zur App verloren: " + e, true); });
+  }
+
+  function openChat(p) {
+    if (!HASH.test(p)) { cstatus("LXMF-Adresse muss aus 32 Hex-Zeichen bestehen", true); return; }
+    peer = p.toLowerCase(); lastCount = -1;
+    $("compose").hidden = false; $("msgs").innerHTML = "";
+    cstatus(label("", peer));
+    loadThread(); refreshChat(); $("text").focus();
+  }
+
+  function sendText(text, done) {
+    if (!peer || !text.trim()) return;
+    cstatus("Sende …");
+    api("/api/chat/send", { peer: peer, content: text }).then(function (res) {
+      if (!res.ok) { cstatus(res.error, true); return; }
+      if (done) done();
+      loadThread(); refreshChat();
+    }).catch(function (e) { cstatus("Verbindung zur App verloren: " + e, true); });
+  }
+
+  function resend(m) {
+    sendText(m.content, function () { api("/api/chat/delete", { id: m.id }); });
+  }
+
+  $("compose").onsubmit = function (e) {
+    e.preventDefault();
+    var t = $("text").value;
+    sendText(t, function () { $("text").value = ""; });
+  };
+  $("text").onkeydown = function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("compose").requestSubmit(); }
+  };
+  $("startchat").onclick = function () { var v = $("newpeer").value.trim().toLowerCase(); if (v) { openChat(v); $("newpeer").value = ""; } };
+  $("newpeer").onkeydown = function (e) { if (e.key === "Enter") $("startchat").onclick(); };
+  $("announce").onclick = function () {
+    api("/api/chat/announce", {}).then(function (r) { cstatus(r.ok ? "Adresse bekanntgegeben." : r.error, !r.ok); });
+  };
+  $("copyaddr").onclick = function () {
+    var a = $("myaddr").getAttribute("data-addr") || "";
+    if (navigator.clipboard) navigator.clipboard.writeText(a).then(function () { cstatus("Adresse kopiert."); },
+      function () { cstatus("Kopieren nicht erlaubt – Adresse von Hand markieren.", true); });
+  };
+
+  setInterval(function () {
+    if (document.hidden) return;
+    if (!$("chatview").hidden) { refreshChat(); loadThread(); }
+  }, 4000);
+  setInterval(function () { if ($("chatview").hidden && !document.hidden) refreshChat(); }, 15000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && !$("chatview").hidden) { refreshChat(); loadThread(); } });
+  refreshChat();
+
+  // ---------- Node-Verwaltung (Provisioning) ----------
+  var N = { dest: "", ident: "", schema: [], values: {}, drafts: {}, ns: null, mode: "manage" };
+
+  // Namespaces, die immer unter "Verwalten" erscheinen (Konfiguration, Allow-Liste, Transport …)
+  var MANAGE_FORCE = [100, 101, 1, 2];
+
+  // Felder, mit denen man sich selbst vom Node aussperren oder dessen Konfiguration löschen kann
+  var DANGER = /remote management|transport enabled|clear provisioning|clear storage/i;
+  var DANGER_HARD = /clear provisioning/i;
+
+  function isManage(ns) {
+    if (MANAGE_FORCE.indexOf(ns.id) >= 0) return true;
+    return ns.fields.some(function (f) { return f.flags.indexOf("read_only") < 0; });
+  }
+
+  // Umrechnung roher Statuswerte nach Feldname, angelehnt an die RNode-Konsole.
+  // raw: Rohwert klein dahinter zeigen. when(root): Regel nur im Top-Level-Namespace mit diesem Namen.
+  function fmtBytes(v) { return Number(v).toLocaleString("de-DE") + " B"; }
+  function trimNum(x, d) { return Number(x.toFixed(d)).toLocaleString("de-DE", { maximumFractionDigits: d }); }
+  var FMT = [
+    { re: /^last rssi$/i, raw: true, fn: function (v) { return (v - 157) + " dBm"; } },
+    { re: /rssi|noise floor/i, fn: function (v) { return v + " dBm"; } },
+    { re: /snr/i, raw: true, fn: function (v) { var s = v * 0.25; return (s > 0 ? "+" : "") + trimNum(s, 2) + " dB"; } },
+    { re: /\(%\)|percent/i, fn: function (v) { return v + " %"; } },
+    { re: /^frequency$/i, fn: function (v) { return trimNum(v / 1e6, 6) + " MHz"; } },
+    { re: /^bandwidth$/i, fn: function (v) { return trimNum(v / 1e3, 3) + " kHz"; } },
+    { re: /^tx power$/i, fn: function (v) { return v + " dBm"; } },
+    { re: /^coding rate$/i, raw: true, fn: function (v) { return "4/" + v; } },
+    { re: /^(size|free|min free|max alloc)$/i, when: /memory/i, fn: fmtBytes }
+  ];
+
+  function fmtValue(ns, f, v, root) {
+    if (v === undefined || v === null) {
+      return f.flags.indexOf("secret") >= 0 ? { text: "geheim (wird nicht ausgegeben)", raw: "" } : { text: "–", raw: "" };
+    }
+    if (f.type === "bool") return { text: v ? "ja" : "nein", raw: "" };
+    if (f.type === "enum") {
+      var i = (f.enum_values || []).indexOf(v);
+      var lbl = i >= 0 && f.enum_labels && f.enum_labels[i];
+      return { text: lbl || String(v), raw: lbl ? String(v) : "" };
+    }
+    if (Array.isArray(v)) return { text: v.length ? v.join(", ") : "(leer)", raw: "" };
+    if ((f.type === "int" || f.type === "float") && typeof v === "number") {
+      for (var k = 0; k < FMT.length; k++) {
+        var r = FMT[k];
+        if (r.re.test(f.name) && (!r.when || r.when.test(root || ""))) return { text: r.fn(v), raw: r.raw ? String(v) : "" };
+      }
+    }
+    return { text: String(v), raw: "" };
+  }
+
+  function setMode(m) {
+    N.mode = m;
+    Array.prototype.forEach.call($("nmode").querySelectorAll("button[data-m]"), function (b) {
+      b.className = b.getAttribute("data-m") === m ? "on" : "";
+    });
+    $("nstatrefresh").hidden = m !== "status";
+    renderNs();
+  }
+  Array.prototype.forEach.call($("nmode").querySelectorAll("button[data-m]"), function (b) {
+    b.onclick = function () { setMode(b.getAttribute("data-m")); };
+  });
+  $("nstatrefresh").onclick = function () {
+    nstatus("Aktualisiere Status …"); reloadState().then(function () { nstatus("Status aktualisiert."); });
+  };
+
+  $("ndisc").onclick = function () {
+    if (!N.dest) { nstatus("Kein Node verbunden.", true); return; }
+    nreq("disconnect").then(function (r) {
+      nstatus(r.ok ? (r.closed ? "Link getrennt – die nächste Aktion baut ihn neu auf." : "Kein offener Link zu diesem Node.") : r.error, !r.ok);
+    }).catch(function (e) { nstatus("Fehler: " + e, true); });
+  };
+
+  function rootOf(id, byId) {
+    var seen = {}, n = byId[id];
+    while (n && n.parent && byId[n.parent] && !seen[n.id]) { seen[n.id] = 1; n = byId[n.parent]; }
+    return n;
+  }
+
+  function renderStatus() {
+    var box = $("nfields"); box.innerHTML = "";
+    if (N.at) {
+      var st = document.createElement("div"); st.className = "sstamp";
+      st.textContent = "Stand " + N.at.toLocaleTimeString("de-DE") + " – „Aktualisieren“ holt neue Werte vom Node";
+      box.appendChild(st);
+    }
+    var byId = {}, kids = {};
+    N.schema.forEach(function (n) { byId[n.id] = n; });
+    N.schema.forEach(function (n) {
+      var pid = byId[n.parent] && n.parent !== n.id ? n.parent : 0;
+      (kids[pid] = kids[pid] || []).push(n);
+    });
+    function hasStatus(n, seen) {
+      if (seen[n.id]) return false; seen[n.id] = 1;
+      return !isManage(n) || (kids[n.id] || []).some(function (c) { return hasStatus(c, seen); });
+    }
+    function draw(n, depth, root, parentEl, seen) {
+      if (seen[n.id] || !hasStatus(n, {})) return;
+      seen[n.id] = 1;
+      var wrap = parentEl;
+      if (depth === 0) { wrap = document.createElement("div"); wrap.className = "sgrp"; box.appendChild(wrap); }
+      var h = document.createElement(depth === 0 ? "h3" : depth === 1 ? "h4" : "h5");
+      h.textContent = n.name; wrap.appendChild(h);
+      if (!isManage(n)) {
+        var vals = N.values[n.id] || {};
+        var tbl = document.createElement("table"); tbl.className = "sfields";
+        n.fields.forEach(function (f) {
+          if (f.type === "void") return;
+          var r = fmtValue(n, f, vals[f.id], root);
+          var tr = document.createElement("tr");
+          var a = document.createElement("td"); a.className = "fn"; a.textContent = f.name;
+          var b = document.createElement("td"); b.className = "fv"; b.textContent = r.text;
+          if (r.raw) { var sm = document.createElement("small"); sm.textContent = "roh " + r.raw; b.appendChild(sm); }
+          tr.appendChild(a); tr.appendChild(b); tbl.appendChild(tr);
+        });
+        if (tbl.rows.length) wrap.appendChild(tbl);
+      }
+      (kids[n.id] || []).forEach(function (c) { draw(c, depth + 1, root, wrap, seen); });
+    }
+    var seen = {};
+    (kids[0] || []).forEach(function (r) { draw(r, 0, r.name, box, seen); });
+    if (!box.querySelector(".sgrp")) box.textContent = "Keine lesenden Namespaces.";
+  }
+
+  function nstatus(msg, isErr) { var el = $("nstatus"); el.textContent = msg || ""; el.className = isErr ? "err" : ""; }
+
+  function refreshNodes() {
+    api("/api/node").then(function (s) {
+      if (!s.ok) { $("tab-nodes").hidden = true; return; }
+      $("tab-nodes").hidden = false;
+      var box = $("mnodes"); box.innerHTML = "";
+      s.nodes.forEach(function (n) {
+        var row = document.createElement("div"); row.className = "nrow";
+        var b = document.createElement("button"); b.className = "node";
+        b.textContent = n.name || "(ohne Name)";
+        if (n.src === "node") b.title = "Name, den der Node selbst meldet (Rechtsklick = eigenen Namen vergeben)";
+        var small = document.createElement("small"); small.textContent = n.hash.slice(0, 16) + "…";
+        b.appendChild(small);
+        b.onclick = function () { $("ndest").value = n.hash; connectNode(); };
+        var x = document.createElement("button"); x.className = "nodex"; x.textContent = "×";
+        x.title = "Eintrag aus der Liste entfernen (der Node bleibt unverändert, gespeicherte Schemas bleiben erhalten)";
+        x.onclick = function () {
+          if (!confirm("Eintrag '" + (n.name || n.hash.slice(0, 16)) + "' aus der Liste entfernen?\n\nDer Node selbst wird nicht verändert. " +
+              "Er taucht wieder auf, sobald er sich erneut ankündigt oder du ihn öffnest.")) return;
+          api("/api/node/forget", { dest: n.hash }).then(function (r) {
+            if (!r.ok) { nstatus(r.error, true); return; }
+            refreshNodes();
+          });
+        };
+        b.oncontextmenu = function (e) {
+          e.preventDefault();
+          var nm = prompt("Name für diesen Node (leer = keiner):", n.auto ? "" : (n.name || ""));
+          if (nm !== null) api("/api/node/rename", { dest: n.hash, name: nm }).then(refreshNodes);
+        };
+        row.appendChild(b); row.appendChild(x);
+        box.appendChild(row);
+      });
+      if (!s.nodes.length) box.textContent = "noch keine verwaltet (Rechtsklick = umbenennen)";
+    }).catch(function () {});
+    api("/api/state").then(function (s) {
+      N.ids = s.identities;
+      var sel = $("nident"), keep = sel.value; sel.innerHTML = "";
+      if (!s.identities.length) { var none = document.createElement("option"); none.value = ""; none.textContent = "(keine Identity – im Browser-Reiter anlegen)"; sel.appendChild(none); }
+      s.identities.forEach(function (i) {
+        var o = document.createElement("option"); o.value = i.name; o.textContent = i.name + " " + i.hash.slice(0, 8) + "…"; sel.appendChild(o);
+      });
+      if (keep) sel.value = keep; else if (s.identities.length) sel.value = s.identities[0].name;
+    });
+  }
+
+  function nreq(action, extra) {
+    var body = { dest: N.dest, identity: N.ident };
+    for (var k in (extra || {})) body[k] = extra[k];
+    return api("/api/node/" + action, body);
+  }
+
+  function cacheText(c) {
+    if (!c || !c.present) return "Schema-Cache: keiner";
+    var t = "Schema-Cache: " + c.namespaces + " Namespaces, " + c.fields + " Felder, gespeichert " +
+      (c.saved ? new Date(c.saved * 1000).toLocaleString("de-DE") : "?");
+    var stale = c.stale_namespaces ? c.stale_namespaces + " Namespaces weichen vom Node ab" : "Hash weicht vom Node ab";
+    var st = { current: "aktuell (Namespace-Hashes stimmen)", stale: stale + " – gespeichertes Schema wird verwendet",
+               unchecked: "wird beim Öffnen des Nodes geprüft", unknown: "Stand unbekannt" }[c.status];
+    if (c.status === "adopted") t += " · übernommen von " + (c.adopted || []).map(function (h) { return h.slice(0, 8); }).join(", ") + " (nicht vom Node bestätigt)";
+    else if (st) t += " · " + st;
+    return t;
+  }
+
+  function needSchema(r) {
+    var d = (r.donors || [])[0];
+    if (d && confirm(r.error + "\n\nSchema von '" + d.name + "' (" + d.namespaces + " Namespaces, " + d.fields +
+        " Felder) übernehmen?\nKein Funkverkehr. Nur Standardwerte können abweichen.")) {
+      nstatus("Übernehme Schema …");
+      nreq("adopt", { donor: d.dest }).then(function (a) {
+        if (!a.ok) { nstatus(a.error, true); return; }
+        connectNode(false);
+      }).catch(function (e) { nstatus("Fehler: " + e, true); });
+      return;
+    }
+    if (confirm(r.error + "\n\nSchema über Funk vom Node holen?\nDas hat schon Nodes zum Hängen gebracht (bei einzelnen Nodes beobachtet). " +
+        "Nur wenn der Node erreichbar ist und du ihn notfalls zurücksetzen kannst.")) { connectNode(false, true); return; }
+    nstatus(r.error + " – abgebrochen, es wurde nichts über Funk geholt.", true);
+  }
+
+  function connectNode(refresh, fetchSchema) {
+    var dest = $("ndest").value.trim().toLowerCase();
+    if (!HASH.test(dest)) { nstatus("Hash muss aus 32 Hex-Zeichen bestehen.", true); return; }
+    if (refresh && !confirm("Schema neu über Funk holen?\nDas überträgt viele Pakete und hat schon Nodes zum Hängen gebracht " +
+        "(bei einzelnen Nodes beobachtet). Nur wenn der Node erreichbar ist und du ihn notfalls zurücksetzen kannst.")) return;
+    N.dest = dest; N.ident = $("nident").value;
+    nstatus("Verbinde … (Pfad, Link, Zustand – über LoRa kann das dauern)");
+    $("nconnect").disabled = true;
+    var go = refresh
+      ? nreq("schema", { refresh: true, confirm: true }).then(function (r) { return r.ok ? nreq("overview", { fetch_schema: true }) : r; })
+      : nreq("overview", fetchSchema ? { fetch_schema: true } : {});
+    go.then(function (r) {
+      $("nconnect").disabled = false;
+      if (!r.ok && r.need_schema) { needSchema(r); return; }
+      if (!r.ok) { nstatus(r.error, true); return; }
+      N.schema = r.schema; N.values = r.values; N.drafts = r.drafts; N.at = new Date();
+      if (window.matchMedia && window.matchMedia("(max-width:700px)").matches) $("nstatus").scrollIntoView(true);   // Handy: zur Verwaltung springen
+      if (!N.ns || !N.schema.some(function (n) { return n.id === N.ns; })) N.ns = N.schema.length ? N.schema[0].id : null;
+      $("nbanner").hidden = !r.info.needs_reboot;
+      $("ninfo").textContent = "Firmware " + r.info.firmware + " · Schema v" + r.info.schema_version + " · " + dest + " · " + cacheText(r.cache);
+      nstatus("Verbunden.");
+      renderNs(); refreshNodes();
+    }).catch(function (e) { $("nconnect").disabled = false; nstatus("Fehler: " + e, true); });
+  }
+
+  function pingNode() {
+    var dest = $("ndest").value.trim().toLowerCase();
+    if (!HASH.test(dest)) { nstatus("Hash muss aus 32 Hex-Zeichen bestehen.", true); return; }
+    N.dest = dest; N.ident = $("nident").value;
+    nstatus("Teste … (Link und GetInfo, sonst nichts)");
+    $("nping").disabled = true;
+    nreq("ping").then(function (r) {
+      $("nping").disabled = false;
+      if (!r.ok) { nstatus(r.error, true); return; }
+      nstatus("Node antwortet: Firmware " + r.info.firmware + " · Schema-Hash " + r.info.schema_hash +
+        (r.rtt != null ? " · Link-RTT " + r.rtt + " s" : "") + (r.hops != null ? " · " + r.hops + " Hops" : "") +
+        " · gesamt " + r.seconds + " s · " + cacheText(r.cache));
+    }).catch(function (e) { $("nping").disabled = false; nstatus("Fehler: " + e, true); });
+  }
+
+  function reloadState() {
+    return nreq("state").then(function (r) {
+      if (!r.ok) { nstatus(r.error, true); return; }
+      for (var k in r.values) N.values[k] = r.values[k];
+      N.drafts = r.drafts; N.at = new Date(); renderNs();
+    });
+  }
+
+  function curNs() { return N.schema.filter(function (n) { return n.id === N.ns; })[0]; }
+
+  function renderNs() {
+    var nav = $("nsnav"); nav.innerHTML = "";
+    $("nmode").hidden = !N.schema.length;
+    var statusMode = N.mode === "status";
+    $("nbar").hidden = statusMode || !N.schema.length;
+    nav.hidden = statusMode;
+    if (statusMode) { renderStatus(); return; }
+    var mng = N.schema.filter(isManage);
+    if (mng.length && !mng.some(function (n) { return n.id === N.ns; })) N.ns = mng[0].id;
+    mng.forEach(function (n) {
+      var b = document.createElement("button"); b.textContent = n.name;
+      b.className = n.id === N.ns ? "on" : "";
+      var d = N.drafts[n.id]; if (d && Object.keys(d).length) b.textContent += " *";
+      b.onclick = function () { N.ns = n.id; renderNs(); };
+      nav.appendChild(b);
+    });
+    var box = $("nfields"); box.innerHTML = "";
+    var ns = curNs(); if (!ns) return;
+    var tbl = document.createElement("table"); tbl.className = "fields";
+    var vals = N.values[ns.id] || {}, drs = N.drafts[ns.id] || {};
+    ns.fields.forEach(function (f) {
+      var tr = document.createElement("tr");
+      var hasDraft = Object.prototype.hasOwnProperty.call(drs, f.id);
+      if (hasDraft) tr.className = "draft";
+      if (DANGER.test(f.name)) tr.className = (tr.className + " dangerrow").trim();
+      var td1 = document.createElement("td"); td1.className = "fn";
+      td1.appendChild(document.createTextNode(f.name));
+      if (DANGER.test(f.name)) {
+        var dg = document.createElement("span"); dg.className = "badge warn"; dg.textContent = "⚠ Zugriff";
+        dg.title = "Falsche Werte können den Node aus der Ferne unerreichbar machen"; td1.appendChild(dg);
+      }
+      f.flags.forEach(function (fl) {
+        var bd = document.createElement("span"); bd.className = "badge" + (fl === "reboot_required" ? " warn" : "");
+        bd.textContent = fl === "reboot_required" ? "↻ reboot" : fl.replace("_", " "); td1.appendChild(bd);
+      });
+      var td2 = document.createElement("td"); td2.className = "fi";
+      td2.appendChild(fieldInput(ns, f, hasDraft ? drs[f.id] : vals[f.id]));
+      var td3 = document.createElement("td"); td3.className = "fh"; td3.textContent = fieldHint(f);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tbl.appendChild(tr);
+    });
+    box.appendChild(tbl);
+    updateDirty();
+  }
+
+  var UNITS = [[/frequency|bandwidth/i, "Hz"], [/tx power/i, "dBm"], [/interval/i, "s"]];
+
+  function fieldHint(f) {
+    var p = [], u = "";
+    UNITS.forEach(function (x) { if (!u && x[0].test(f.name)) u = x[1]; });
+    if (f.type === "int" || f.type === "float") {
+      var lo = f.type === "float" ? f.min_f : f.min_i, hi = f.type === "float" ? f.max_f : f.max_i;
+      if (lo != null || hi != null) p.push((lo != null ? lo : "…") + " – " + (hi != null ? hi : "…") + (u ? " " + u : ""));
+      else if (u) p.push(u);
+    }
+    if (f.type === "string" && f.max_len) p.push("max. " + f.max_len + " Zeichen");
+    if (f.type === "byteslist") p.push("ein Hex-Wert pro Zeile" + (f.max_count ? ", max. " + f.max_count : ""));
+    var d = f.default;
+    if (d !== undefined && d !== null && !Array.isArray(d)) {
+      if (f.type === "bool") d = d ? "an" : "aus";
+      else if (f.type === "enum") { var k = (f.enum_values || []).indexOf(d); d = (k >= 0 && f.enum_labels && f.enum_labels[k]) || d; }
+      if (d !== "") p.push("Standard " + d);
+    }
+    return p.join(" · ");
+  }
+
+  function fieldInput(ns, f, value) {
+    var el;
+    var ro = f.flags.indexOf("read_only") >= 0, wo = f.flags.indexOf("write_only") >= 0, secret = f.flags.indexOf("secret") >= 0;
+    if (ro) { el = document.createElement("span"); el.textContent = value === undefined ? "–" : (Array.isArray(value) ? value.join(", ") : String(value)); return el; }
+    if (f.type === "void") {
+      el = document.createElement("button"); el.textContent = "Ausführen";
+      el.onclick = function () {
+        // Das anschließende Commit gilt für den ganzen Namespace und würde Entwürfe mit aktivieren
+        if (Object.keys(N.drafts[ns.id] || {}).length) {
+          nstatus("Im Namespace '" + ns.name + "' liegen Entwürfe – sie würden mit committet. Erst committen oder verwerfen.", true);
+          return;
+        }
+        if (DANGER_HARD.test(f.name)) {
+          if (prompt("'" + f.name + "' löscht die Provisionierung des Nodes, auch die Allow-Liste. Danach ist er nicht mehr aus der Ferne verwaltbar.\nZur Bestätigung 'LÖSCHEN' eingeben:") !== "LÖSCHEN") return;
+        } else if (!confirm("'" + f.name + "' ausführen?")) return;
+        var ch = {}; ch[ns.id] = {}; ch[ns.id][f.id] = null;
+        nreq("set", { changes: ch }).then(function (r) { return r.ok ? nreq("commit", { ns: [ns.id] }) : r; })
+          .then(function (r) { nstatus(r.ok ? "Ausgeführt." : r.error, !r.ok); if (r.ok && r.needs_reboot) $("nbanner").hidden = false; });
+      };
+      return el;
+    }
+    if (f.type === "bool") { el = document.createElement("input"); el.type = "checkbox"; el.checked = !!value; }
+    else if (f.type === "enum") {
+      el = document.createElement("select");
+      (f.enum_values || []).forEach(function (v, i) {
+        var o = document.createElement("option"); o.value = v; o.textContent = (f.enum_labels && f.enum_labels[i]) || v; el.appendChild(o);
+      });
+      el.value = value;
+    }
+    else if (f.type === "int" || f.type === "float") {
+      el = document.createElement("input"); el.type = "number";
+      if (f.type === "float") el.step = "any";
+      if (f.min_i != null) el.min = f.min_i; if (f.max_i != null) el.max = f.max_i;
+      el.value = value === undefined ? "" : value;
+    }
+    else if (f.type === "byteslist") { el = document.createElement("textarea"); el.rows = Math.min(8, Math.max(3, (value || []).length + 1)); el.placeholder = "ein Hex-Wert pro Zeile"; el.wrap = "off"; el.spellcheck = false; el.value = (value || []).join("\n"); }
+    else {
+      el = document.createElement("input"); el.type = secret ? "password" : "text";
+      if (f.max_len) el.maxLength = f.max_len;
+      if (secret) el.placeholder = "geheim – leer = unverändert"; else el.value = value === undefined || value === null ? "" : value;
+    }
+    el.setAttribute("data-ns", ns.id); el.setAttribute("data-f", f.id); el.setAttribute("data-type", f.type);
+    el.setAttribute("data-orig", JSON.stringify(secret ? "" : (value === undefined ? (f.type === "byteslist" ? [] : null) : value)));
+    el.setAttribute("data-reboot", f.flags.indexOf("reboot_required") >= 0 ? "1" : "");
+    return el;
+  }
+
+  function elValue(el) {
+    var t = el.getAttribute("data-type"), v;
+    if (t === "bool") v = el.checked;
+    else if (t === "int" || t === "enum") { if (el.value === "") return null; v = parseInt(el.value, 10); }
+    else if (t === "float") { if (el.value === "") return null; v = parseFloat(el.value); }
+    else if (t === "byteslist") v = el.value.split(/\s+/).filter(function (x) { return x; });
+    else { v = el.value; if (el.type === "password" && v === "") return null; }
+    if (JSON.stringify(v) === el.getAttribute("data-orig")) return null;
+    return { v: v };
+  }
+
+  function collectChanges() {
+    var ch = {}, reboot = false;
+    Array.prototype.forEach.call($("nfields").querySelectorAll("[data-f]"), function (el) {
+      var r = elValue(el); if (!r) return;
+      var ns = el.getAttribute("data-ns");
+      (ch[ns] = ch[ns] || {})[el.getAttribute("data-f")] = r.v;
+      if (el.getAttribute("data-reboot")) reboot = true;
+    });
+    return { changes: ch, reboot: reboot };
+  }
+
+  function updateDirty() {
+    var n = 0;
+    Array.prototype.forEach.call($("nfields").querySelectorAll("[data-f]"), function (el) {
+      var chg = !!elValue(el), tr = el.closest ? el.closest("tr") : null;
+      if (tr) tr.className = (tr.className.replace(/\bchg\b/g, "").trim() + (chg ? " chg" : "")).trim();
+      if (chg) n++;
+    });
+    $("nsave").textContent = n ? "Als Entwurf speichern (" + n + ")" : "Als Entwurf speichern";
+  }
+  $("nfields").addEventListener("input", updateDirty);
+  $("nfields").addEventListener("change", updateDirty);
+
+  function fieldOf(nsId, fId) {
+    var ns = N.schema.filter(function (n) { return String(n.id) === String(nsId); })[0];
+    return ns ? ns.fields.filter(function (f) { return String(f.id) === String(fId); })[0] : null;
+  }
+
+  // Warnt, bevor eine Änderung den Node für bindu unerreichbar macht
+  function lockoutWarning(changes) {
+    var me = (N.ids || []).filter(function (i) { return i.name === N.ident; })[0];
+    var msgs = [];
+    Object.keys(changes).forEach(function (nsId) {
+      Object.keys(changes[nsId]).forEach(function (fId) {
+        var f = fieldOf(nsId, fId), v = changes[nsId][fId];
+        if (!f) return;
+        if (/remote management allowed/i.test(f.name) && Array.isArray(v) && me &&
+            v.map(function (x) { return x.toLowerCase(); }).indexOf(me.hash) < 0)
+          msgs.push("Die Identity '" + me.name + "' (" + me.hash.slice(0, 8) + "…) fehlt in '" + f.name + "'. Nach dem Commit lehnt der Node alle Anfragen von bindu ab.");
+        if (/remote management enabled/i.test(f.name) && v === false)
+          msgs.push("'" + f.name + "' wird ausgeschaltet. Nach Commit und Neustart ist der Node nicht mehr aus der Ferne verwaltbar.");
+      });
+    });
+    return msgs.length ? msgs.join("\n\n") + "\n\nTrotzdem als Entwurf speichern?" : "";
+  }
+
+  function done(r, okMsg) {
+    if (!r.ok) { nstatus(r.error, true); return false; }
+    nstatus(okMsg); return true;
+  }
+
+  $("nconnect").onclick = function () { connectNode(false); };
+  $("nrefresh").onclick = function () { connectNode(true); };
+  $("nping").onclick = pingNode;
+  $("ndest").onkeydown = function (e) { if (e.key === "Enter") connectNode(false); };
+  $("nsave").onclick = function () {
+    var c = collectChanges();
+    if (!Object.keys(c.changes).length) { nstatus("Keine Änderungen."); return; }
+    var lock = lockoutWarning(c.changes);
+    if (lock && !confirm(lock)) return;
+    nstatus("Speichere Entwurf …");
+    nreq("set", { changes: c.changes }).then(function (r) {
+      if (!done(r, "Entwurf gespeichert (" + r.applied + " Feld/er) – noch nicht aktiv, dazu Commit.")) return;
+      if (r.field_errors && r.field_errors.length) nstatus("Teilweise abgelehnt: " + r.field_errors.map(function (e) { return e.ns + "/" + e.field + " " + e.error; }).join(", "), true);
+      return reloadState();
+    });
+  };
+  $("ncommit").onclick = function () {
+    var ns = curNs(); if (!ns) return;
+    var d = N.drafts[ns.id] || {};
+    var risky = ns.fields.some(function (f) { return f.flags.indexOf("reboot_required") >= 0 && Object.prototype.hasOwnProperty.call(d, f.id); });
+    if (risky && !confirm("Dieser Entwurf enthält Felder, die einen Neustart brauchen (Funkparameter, Interface-Modi …).\nFalsche Werte machen einen entfernten Node unerreichbar. Wirklich committen?")) return;
+    nstatus("Commit …");
+    nreq("commit", { ns: [ns.id] }).then(function (r) {
+      if (!done(r, "Committet (" + r.applied + ").")) return;
+      if (r.needs_reboot) $("nbanner").hidden = false;
+      return reloadState();
+    });
+  };
+  $("ndiscard").onclick = function () {
+    var ns = curNs(); if (!ns) return;
+    nreq("discard", { ns: [ns.id] }).then(function (r) { if (done(r, "Entwurf verworfen.")) return reloadState(); });
+  };
+  $("nreboot").onclick = function () {
+    if (!confirm("Node neu starten? Der Link bricht ab.")) return;
+    nreq("reboot").then(function (r) {
+      if (done(r, r.acked ? "Neustart bestätigt – in ca. 30 s neu verbinden."
+                          : "Neustart gesendet. Der Node antwortet dabei nicht, das ist normal – in ca. 30 s neu verbinden.")) $("nbanner").hidden = true;
+    });
+  };
+  $("nreset").onclick = function () {
+    if (prompt("WERKSRESET löscht die Konfiguration des Nodes. Zur Bestätigung 'RESET' eingeben:") !== "RESET") return;
+    nreq("factory_reset", { confirm: true }).then(function (r) { if (done(r, "Werksreset ausgeführt – Neustart nötig.")) $("nbanner").hidden = false; });
+  };
+  refreshNodes();
+
+  // Protokoll: dieselben Zeilen wie im Terminal (Link-Aufbau, Anfragen, Wiederholungen, Fehler)
+  var logLast = 0, logOn = true;
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function pollLog() {
+    if (!logOn || document.hidden || $("tab-nodes").className.indexOf("on") < 0) return;
+    api("/api/node/log?since=" + logLast).then(function (r) {
+      if (!r.ok) return;
+      if (r.last < logLast) { logLast = 0; $("nlog").textContent = ""; }  // App neu gestartet
+      var box = $("nlog"), stick = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+      r.events.forEach(function (e) {
+        var d = new Date(e.t * 1000), row = document.createElement("div");
+        var t = document.createElement("span"); t.className = "t"; t.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) + "  ";
+        var m = document.createElement("span"); if (e.error) m.className = "e"; m.textContent = e.text;
+        row.appendChild(t); row.appendChild(m); box.appendChild(row);
+        logLast = e.id;
+      });
+      while (box.childNodes.length > 300) box.removeChild(box.firstChild);
+      if (r.events.length && stick) box.scrollTop = box.scrollHeight;
+      if (!r.events.length) logLast = Math.max(logLast, r.last);
+    }).catch(function () {});
+  }
+  $("nlogtoggle").onclick = function () {
+    logOn = !logOn; $("nlog").hidden = !logOn; $("nlogtoggle").textContent = logOn ? "ausblenden" : "einblenden";
+  };
+  $("nlogclear").onclick = function () { $("nlog").textContent = ""; };
+  setInterval(pollLog, 1500);
+
+  refresh();
+  setInterval(function () { refresh(); }, 15000);
+})();
+</script>
+</body>
+</html>
