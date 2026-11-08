@@ -38,7 +38,21 @@ class HostAllowedTests(unittest.TestCase):
         self.assertTrue(self.ok("kali.tailnet.ts.net:8765", ["kali.tailnet.ts.net"]))
         self.assertTrue(self.ok("KALI.tailnet.ts.net:8765", ["kali.TAILNET.ts.net"]))
         self.assertFalse(self.ok("other.tailnet.ts.net:8765", ["kali.tailnet.ts.net"]))
-        self.assertFalse(self.ok("kali.tailnet.ts.net:1", ["kali.tailnet.ts.net"]))  # der Port gilt auch hier
+
+    def test_allowed_names_work_without_or_with_any_port(self):
+        # Ein Reverse-Proxy schickt meist nur den Namen (Port 443 steht nicht im Header)
+        extra = ["bindu.example"]
+        for h in ("bindu.example", "bindu.example:443", "bindu.example:8443", "BINDU.example"):
+            self.assertTrue(self.ok(h, extra), h)
+
+    def test_allowed_name_needs_a_valid_port_syntax(self):
+        extra = ["bindu.example"]
+        for h in ("bindu.example:", "bindu.example:abc", "bindu.example:80:80", "bindu.example 80", "x.bindu.example", "bindu.example.evil"):
+            self.assertFalse(self.ok(h, extra), h)
+
+    def test_ip_still_needs_the_real_port(self):
+        self.assertFalse(self.ok("127.0.0.1:1", ["bindu.example"]))
+        self.assertFalse(self.ok("127.0.0.1", ["bindu.example"]))
 
     def test_wildcard(self):
         self.assertTrue(self.ok("anything.example:1", ["*"]))
@@ -91,6 +105,9 @@ class NonLoopbackBindingTests(_ServerTest):
     def test_allowed_name_is_served(self):
         self.assertEqual(self.get("/api/state", host="kali.tailnet.ts.net:%d" % self.port)[0], 200)
 
+    def test_allowed_name_without_port_is_served(self):
+        self.assertEqual(self.get("/api/state", host="kali.tailnet.ts.net")[0], 200)
+
 
 class LoopbackBindingTests(_ServerTest):
     ALLOW = ("proxy.example",)
@@ -105,6 +122,11 @@ class LoopbackBindingTests(_ServerTest):
     def test_allow_host_extends_loopback(self):
         self.assertEqual(self.get("/api/state", host="proxy.example:%d" % self.port)[0], 200)
         self.assertEqual(self.get("/api/state", host="evil.example:%d" % self.port)[0], 403)
+
+    def test_allow_host_without_port_on_loopback(self):
+        self.assertEqual(self.get("/api/state", host="proxy.example")[0], 200)
+        self.assertEqual(self.get("/api/state", host="proxy.example:443")[0], 200)
+        self.assertEqual(self.get("/api/state", host="100.64.1.2")[0], 403)
 
 
 class WildcardTests(_ServerTest):

@@ -159,6 +159,7 @@
   <button id="tab-nodes" class="tab" hidden>Nodes</button>
   <span id="bbar">
     <button id="back" title="Zurück" disabled>←</button>
+    <button id="fwd" title="Vor" disabled>→</button>
     <input id="addr" placeholder="Node-Hash oder hash:/page/index.mu" spellcheck="false" autocomplete="off">
     <button id="go">Laden</button>
     <select id="ident" title="Identity für die Anmeldung beim Node"></select>
@@ -232,7 +233,8 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var cur = { node: "", path: "" };
-  var hist = [];
+  var hist = [];  // Zurück-Stapel (ältestes zuerst)
+  var fwd = [];   // Vor-Stapel: Seiten, von denen man zurückgegangen ist
   var HASH = /^[0-9a-f]{32}$/i;
 
   function api(path, body) {
@@ -283,7 +285,14 @@
     return { fields: fields, vars: vars };
   }
 
-  function load(node, path, extra, noHistory) {
+  function navButtons() {
+    $("back").disabled = hist.length === 0;
+    $("fwd").disabled = fwd.length === 0;
+  }
+
+  // mode: leer = neue Seite (Vor-Stapel wird geleert), "back" = Zurück, "fwd" = Vor.
+  // Der Verlauf ändert sich erst, wenn die Seite wirklich geladen wurde; ein Fehler lässt ihn unberührt.
+  function load(node, path, extra, mode) {
     if (!HASH.test(node)) { setStatus("Ungültiger Node-Hash", true); return; }
     var identity = $("ident").value;
     setStatus("Lade " + node.slice(0, 8) + "…" + path + (identity ? "  (als " + identity + ")" : "  (anonym)") + " …");
@@ -293,11 +302,14 @@
       fields: extra ? extra.fields : {}, vars: extra ? extra.vars : {}
     }).then(function (res) {
       if (!res.ok) { setStatus(res.error, true); return; }
-      if (!noHistory && prev.node) hist.push(prev);
+      var same = prev.node === node && prev.path === path;
+      if (mode === "back") { hist.pop(); if (prev.node) fwd.push(prev); }
+      else if (mode === "fwd") { fwd.pop(); if (prev.node) hist.push(prev); }
+      else if (!same) { if (prev.node) hist.push(prev); fwd = []; }  // gleiche Seite erneut laden = Neuladen, kein neuer Eintrag
       cur = { node: node, path: path };
       $("addr").value = node + ":" + path;
       $("page").innerHTML = res.html;
-      $("back").disabled = hist.length === 0;
+      navButtons();
       setStatus(node + ":" + path + (identity ? "  ·  " + identity : "  ·  anonym"));
       document.querySelector("section").scrollTop = 0;
     }).catch(function (e) { setStatus("Verbindung zur App verloren: " + e, true); });
@@ -312,9 +324,12 @@
   $("go").onclick = go;
   $("addr").onkeydown = function (e) { if (e.key === "Enter") go(); };
   $("back").onclick = function () {
-    var p = hist.pop();
-    if (p) load(p.node, p.path, null, true);
-    $("back").disabled = hist.length === 0;
+    var p = hist[hist.length - 1];
+    if (p) load(p.node, p.path, null, "back");
+  };
+  $("fwd").onclick = function () {
+    var p = fwd[fwd.length - 1];
+    if (p) load(p.node, p.path, null, "fwd");
   };
 
   $("page").addEventListener("click", function (e) {

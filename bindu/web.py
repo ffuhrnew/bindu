@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 
 from . import micron
-from .access import AccessPolicy
+from .access import AccessPolicy, client_ip
 from .nomad import NomadError
 from .provision import SchemaMissing
 
@@ -47,13 +47,33 @@ def _index_page():
     return _page_cache["index"]
 
 
+def host_name_allowed(header, extra):
+    """True, wenn der Host-Header einen Namen aus ``extra`` trägt (Port beliebig oder ohne): ein Reverse-Proxy
+    schickt meist ``name`` ohne Port. Der Name selbst ist der Schutz, denn ein Angreifer-Name steht nie in der Liste."""
+    names = {str(x).strip().lower() for x in extra}
+    h = (header or "").strip().lower()
+    if h.startswith("["):
+        end = h.find("]")
+        if end < 0:
+            return False
+        name, rest = h[1:end], h[end + 1:]
+    else:
+        name, sep, tail = h.partition(":")
+        rest = sep + tail
+    if rest and not (rest.startswith(":") and rest[1:].isdigit()):
+        return False
+    return name in names
+
+
 def host_allowed(header, port, extra=()):
     """Prüft den Host-Header gegen DNS-Rebinding, wenn der Server nicht nur an Loopback lauscht.
 
-    Erlaubt: IP-Adressen, ``localhost`` und Namen aus ``extra`` (``*`` = alles), jeweils mit dem echten Port.
-    Ein Angreifer-Name, der per DNS auf diese Adresse zeigt, steht nie in dieser Liste."""
+    Erlaubt: IP-Adressen und ``localhost`` mit dem echten Port, Namen aus ``extra`` mit beliebigem oder ohne Port
+    (``*`` = alles). Ein Angreifer-Name, der per DNS auf diese Adresse zeigt, steht nie in dieser Liste."""
     extra = {str(x).strip().lower() for x in extra}
     if "*" in extra:
+        return True
+    if host_name_allowed(header, extra):
         return True
     h = (header or "").strip().lower()
     if h.startswith("["):
@@ -71,7 +91,7 @@ def host_allowed(header, port, extra=()):
             return False
     elif port not in (80, 443):
         return False
-    if name == "localhost" or name in extra:
+    if name == "localhost":
         return True
     try:
         ipaddress.ip_address(name)
@@ -88,7 +108,7 @@ def make_tls_context(cert, key=None):
     return ctx
 
 
-def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access=None):
+def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access=None, trusted_proxies=()):
     if access is None:
         access = AccessPolicy.default()
 
@@ -127,7 +147,8 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
             self._send(code, json.dumps(obj).encode(), "application/json; charset=utf-8")
 
         def _access_ok(self):
-            if access.allows(self.client_address[0]):
+            ip = client_ip(self.client_address[0], self.headers.get_all("X-Forwarded-For"), trusted_proxies)
+            if access.allows(ip):
                 return True
             self._json(403, {"ok": False, "error": "Zugriff nur aus dem Tailnet erlaubt"})
             return False
@@ -283,9 +304,10 @@ def make_handler(backend, allowed_hosts, chat=None, prov=None, meta=None, access
 
 
 def make_server(backend, host="127.0.0.1", port=8765, chat=None, prov=None, meta=None, access=None, tls=None,
-                allow_hosts=()):
+                allow_hosts=(), trusted_proxies=()):
     """``tls``: fertiger ssl.SSLContext (siehe make_tls_context) -> der Port spricht dann nur noch HTTPS.
-    ``allow_hosts``: zusätzliche Namen im Host-Header (z. B. MagicDNS-Name oder Reverse-Proxy), ``*`` = jeder."""
+    ``allow_hosts``: zusätzliche Namen im Host-Header (z. B. MagicDNS-Name oder Reverse-Proxy), ``*`` = jeder.
+    ``trusted_proxies``: Netze (ip_network) von Reverse-Proxys, deren ``X-Forwarded-For`` für die Zugriffsprüfung gilt."""
 
     class _Server(ThreadingHTTPServer):
         daemon_threads = True
@@ -296,20 +318,20 @@ def make_server(backend, host="127.0.0.1", port=8765, chat=None, prov=None, meta
                 return
             super().handle_error(request, client_address)
 
-    server = _Server((host, port), make_handler(backend, None, chat, prov, meta, access))
+    server = _Server((host, port), make_handler(backend, None, chat, prov, meta, access, trusted_proxies))
     if tls is not None:
         server.socket = tls.wrap_socket(server.socket, server_side=True, do_handshake_on_connect=False)
     # Port 0 -> frei wählen; erlaubte Hosts erst nach dem Binden bekannt
     real_port = server.server_address[1]
     if host in ("127.0.0.1", "localhost", "::1"):
-        allowed = {"127.0.0.1:%d" % real_port, "localhost:%d" % real_port, "[::1]:%d" % real_port}
-        for name in allow_hosts:
-            allowed.add("%s:%d" % (str(name).strip().lower(), real_port))
+        strict = {"127.0.0.1:%d" % real_port, "localhost:%d" % real_port, "[::1]:%d" % real_port}
         if any(str(n).strip() == "*" for n in allow_hosts):
             allowed = None
+        else:
+            allowed = lambda header: (header or "").strip().lower() in strict or host_name_allowed(header, allow_hosts)  # noqa: E731
     else:
         # Andere Bindung (Tailnet-Adresse, 0.0.0.0): ohne diese Prüfung könnte eine fremde Webseite per DNS-Rebinding
         # mit der Oberfläche sprechen
         allowed = lambda header: host_allowed(header, real_port, allow_hosts)  # noqa: E731
-    server.RequestHandlerClass = make_handler(backend, allowed, chat, prov, meta, access)
+    server.RequestHandlerClass = make_handler(backend, allowed, chat, prov, meta, access, trusted_proxies)
     return server
