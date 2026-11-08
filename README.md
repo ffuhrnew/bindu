@@ -43,7 +43,8 @@ Wichtige Optionen (für beide gleich, Fenster und Server):
 | `--data ORDNER` | Datenordner für Identities, Nachrichten und Node-Listen (Standard `~/.bindu`) |
 | `--no-announce` | LXMF-Adresse nicht automatisch bekanntgeben |
 | `--no-chat` | Chat nicht starten |
-| `--allow-host NAME` | zusätzlicher Name im Host-Header, z. B. MagicDNS-Name oder Reverse-Proxy (wiederholbar) |
+| `--allow-host NAME` | zusätzlicher Name im Host-Header, z. B. MagicDNS-Name oder Name hinter einem Reverse-Proxy; mit oder ohne Port (wiederholbar) |
+| `--trusted-proxy IP/NETZ` | Reverse-Proxy, dessen `X-Forwarded-For` als Besucheradresse für die Zugriffsprüfung gilt (wiederholbar) |
 
 Alle Optionen: `bindu-server --help`.
 
@@ -61,6 +62,35 @@ vertrauenswürdigen Netz betreiben.
 
 Remote-Verwaltung heißt: Ein Node nimmt Anfragen nur von Identities in seiner Allow-Liste an. Wer sich per
 Konfigurationsänderung aus dieser Liste streicht, sperrt sich aus; die Oberfläche warnt davor.
+
+## Hinter einem Reverse-Proxy
+
+bindu hat keine Anmeldung. Hinter einem Reverse-Proxy (zum Beispiel Caddy) sieht der Server nur die Adresse des Proxys,
+nicht die des Besuchers. Damit die Zugriffsprüfung weiter schützt, braucht es zwei Angaben:
+
+```
+bindu-server --host 100.64.0.10 --port 8766 \
+  --allow-host bindu.example.org \
+  --trusted-proxy 10.0.0.5
+```
+
+- `--allow-host` erlaubt den Namen, unter dem der Proxy bindu erreicht (der Proxy schickt ihn meist ohne Port).
+- `--trusted-proxy` nennt den Proxy (eine Adresse oder ein Netz). Nur von ihm beachtet bindu `X-Forwarded-For` und prüft
+  die Adresse des Besuchers gegen Loopback, Tailnet und `--allow-cidr`. Ohne diese Option lässt ein Proxy auf demselben
+  Rechner (Loopback) jeden Besucher durch.
+- Der Proxy muss `X-Forwarded-For` selbst setzen und darf einen vom Besucher mitgeschickten Wert nicht übernehmen
+  (Caddy tut das standardmäßig).
+
+Caddy-Beispiel:
+
+```
+bindu.example.org {
+    reverse_proxy 100.64.0.10:8766
+}
+```
+
+Wer bindu so über das Internet erreichbar macht, sollte zusätzlich im Proxy eine Anmeldung oder eine Adressfilterung
+vorschalten.
 
 ## Tests
 

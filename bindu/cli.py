@@ -10,7 +10,7 @@ import threading
 import time
 
 from . import __version__
-from .access import AccessPolicy
+from .access import AccessPolicy, parse_networks
 from .nomad import NomadBackend, NomadError
 from .web import make_server, make_tls_context
 
@@ -119,8 +119,16 @@ def main(argv=None):
         action="append",
         default=[],
         metavar="NAME",
-        help="zusätzlicher Name im Host-Header (z. B. MagicDNS-Name oder Reverse-Proxy, wiederholbar; * = jeder). "
-        "Erlaubt sind sonst nur IP-Adressen und localhost",
+        help="zusätzlicher Name im Host-Header (z. B. MagicDNS-Name oder Name hinter einem Reverse-Proxy, "
+        "mit oder ohne Port, wiederholbar; * = jeder). Erlaubt sind sonst nur IP-Adressen und localhost",
+    )
+    p.add_argument(
+        "--trusted-proxy",
+        action="append",
+        default=[],
+        metavar="IP/NETZ",
+        help="Reverse-Proxy, dessen X-Forwarded-For als Besucheradresse für die Zugriffsprüfung gilt "
+        "(wiederholbar). Ohne diese Option sieht bindu hinter einem Proxy nur dessen Adresse",
     )
     p.add_argument("--tls-cert", metavar="DATEI", help="HTTPS: Zertifikat (PEM), z. B. von `tailscale cert`; ohne = HTTP")
     p.add_argument("--tls-key", metavar="DATEI", help="HTTPS: privater Schlüssel (PEM); entfällt, wenn er in der Zertifikatsdatei steht")
@@ -137,6 +145,11 @@ def main(argv=None):
         access = AccessPolicy.disabled() if args.no_access_check else AccessPolicy.default(args.allow_cidr)
     except ValueError as exc:
         p.error("--allow-cidr: %s" % exc)
+
+    try:
+        trusted_proxies = parse_networks(args.trusted_proxy)
+    except ValueError as exc:
+        p.error("--trusted-proxy: %s" % exc)
 
     if args.tls_key and not args.tls_cert:
         p.error("--tls-key braucht --tls-cert")
@@ -185,7 +198,7 @@ def main(argv=None):
         "started": int(time.time()),
     }
     _flush_on_signal(*[x for x in (backend, chat, prov) if x is not None])
-    server = make_server(backend, args.host, args.port, chat, prov, meta, access, tls, args.allow_host)
+    server = make_server(backend, args.host, args.port, chat, prov, meta, access, tls, args.allow_host, trusted_proxies)
     host, port = server.server_address[:2]
     banner = "bindu %s  Code: %s  Python %s  RNS %s  LXMF %s" % (
         meta["version"], meta["file"], meta["python"], meta["rns"], meta["lxmf"] or "-")
@@ -207,6 +220,10 @@ def main(argv=None):
             announce_timer.start()
     print("Zugriff: " + access.describe())
     log.info("Zugriff: %s", access.describe())
+    if trusted_proxies:
+        proxies = ", ".join(str(n) for n in trusted_proxies)
+        print("Vertrauenswürdige Reverse-Proxys (X-Forwarded-For gilt): " + proxies)
+        log.info("Vertrauenswürdige Reverse-Proxys: %s", proxies)
     if not access.enabled and args.host not in ("127.0.0.1", "localhost", "::1"):
         print("WARNUNG: Die Oberfläche hat keine Anmeldung und die Zugriffsprüfung ist aus.", file=sys.stderr)
     try:
